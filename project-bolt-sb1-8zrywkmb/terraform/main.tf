@@ -1,5 +1,5 @@
 provider "aws" {
-  region = var.aws_region
+  region = "eu-north-1"
 }
 
 # VPC and Networking
@@ -9,7 +9,7 @@ module "vpc" {
   name = "task-manager-vpc"
   cidr = "10.0.0.0/16"
 
-  azs             = ["${var.aws_region}a", "${var.aws_region}b"]
+  azs             = ["eu-north-1a", "eu-north-1b"]
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
 
@@ -17,68 +17,24 @@ module "vpc" {
   single_nat_gateway = true
 }
 
-# Jenkins Build Node EC2 Instance
-resource "aws_instance" "jenkins_node" {
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04 LTS
-  instance_type = "t2.medium"
-  subnet_id     = module.vpc.public_subnets[0]
-
-  vpc_security_group_ids = [aws_security_group.jenkins_node.id]
-  key_name              = var.key_pair_name
-
-  root_block_device {
-    volume_size = 30
-    volume_type = "gp2"
-  }
-
-  user_data = <<-EOF
-              #!/bin/bash
-              # Install Docker
-              apt-get update
-              apt-get install -y apt-transport-https ca-certificates curl software-properties-common
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-              add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-              apt-get update
-              apt-get install -y docker-ce docker-ce-cli containerd.io
-              usermod -aG docker ubuntu
-
-              # Install Java
-              apt-get install -y openjdk-11-jdk
-
-              # Install AWS CLI
-              apt-get install -y unzip
-              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-              unzip awscliv2.zip
-              ./aws/install
-
-              # Create Jenkins workspace directory
-              mkdir -p /home/ubuntu/jenkins-agent
-              chown -R ubuntu:ubuntu /home/ubuntu/jenkins-agent
-              EOF
-
-  tags = {
-    Name = "jenkins-build-node"
-  }
-}
-
-# Security Group for Jenkins Node
-resource "aws_security_group" "jenkins_node" {
-  name        = "jenkins-node-sg"
-  description = "Security group for Jenkins build node"
+# Security Groups
+resource "aws_security_group" "jenkins_sg" {
+  name        = "jenkins-sg"
+  description = "Security group for Jenkins instances"
   vpc_id      = module.vpc.vpc_id
 
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] # Restrict to Jenkins master IP in production
+    cidr_blocks = ["0.0.0.0/0"] # Restrict to known IPs in production
   }
 
   ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = [module.vpc.vpc_cidr_block]
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
@@ -86,6 +42,108 @@ resource "aws_security_group" "jenkins_node" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Key Pair
+resource "aws_key_pair" "sand" {
+  key_name   = "sandeep_pub"
+  public_key = file("C:/Users/SANDEEP/.ssh/id_rsa.pub")
+}
+
+# Jenkins Master Instance
+resource "aws_instance" "jenkins_master" {
+  ami                  = "ami-09a9858973b288bdd"
+  instance_type        = "t3.large"
+  key_name             = aws_key_pair.sand.key_name
+  subnet_id            = module.vpc.public_subnets[0]
+  security_groups      = [aws_security_group.jenkins_sg.id]
+  iam_instance_profile = "MySessionManagerrole"
+
+  root_block_device {
+    volume_size = 30
+    volume_type = "gp3"
+  }
+
+  user_data = base64encode(file("userdata.sh"))
+
+  connection {
+    type        = "ssh"
+    private_key = file("C:/Users/SANDEEP/.ssh/id_rsa")
+    host        = self.public_ip
+    user        = "ubuntu"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'The instance is accessible'",
+      "sudo apt update",
+      "sudo apt install -y openjdk-17-jre",
+      "sudo wget -O /usr/share/keyrings/jenkins-keyring.asc https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key",
+      "echo 'deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/' | sudo tee /etc/apt/sources.list.d/jenkins.list > /dev/null",
+      "sudo apt-get update",
+      "sudo apt-get install -y jenkins",
+      "sudo systemctl start jenkins",
+      "sudo systemctl enable jenkins"
+    ]
+  }
+
+  provisioner "file" {
+    source      = "ssh-password-less-Control-Node.sh"
+    destination = "/tmp/ssh-password-less-Control-Node.sh"
+
+    connection {
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file("C:/Users/SANDEEP/.ssh/id_rsa")
+      host        = self.public_ip
+    }
+  }
+
+  tags = {
+    Name = "Jenkins-Master"
+  }
+}
+
+# Jenkins Docker Node
+resource "aws_instance" "jenkins_docker" {
+  ami                  = "ami-09a9858973b288bdd"
+  instance_type        = "t3.micro"
+  key_name             = aws_key_pair.sand.key_name
+  subnet_id            = module.vpc.public_subnets[1]
+  security_groups      = [aws_security_group.jenkins_sg.id]
+  iam_instance_profile = "MySessionManagerrole"
+
+  root_block_device {
+    volume_size = 8
+    volume_type = "gp3"
+  }
+
+  user_data = base64encode(file("userdata.sh"))
+
+  connection {
+    type        = "ssh"
+    private_key = file("C:/Users/SANDEEP/.ssh/id_rsa")
+    host        = self.public_ip
+    user        = "ubuntu"
+  }
+
+  provisioner "remote-exec" {
+    inline = [
+      "echo 'The instance is accessible'",
+      "sudo apt update",
+      "sudo apt install -y docker.io openjdk-17-jre",
+      "sudo systemctl start docker",
+      "sudo systemctl enable docker",
+      "sudo usermod -aG docker ubuntu",
+      "sudo useradd jenkins",
+      "sudo usermod -aG docker jenkins",
+      "sudo systemctl restart docker"
+    ]
+  }
+
+  tags = {
+    Name = "Jenkins-Docker"
   }
 }
 
@@ -135,8 +193,8 @@ resource "aws_lb" "main" {
   name               = "task-manager-alb"
   internal           = false
   load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb.id]
-  subnets           = module.vpc.public_subnets
+  security_groups    = [aws_security_group.jenkins_sg.id]
+  subnets            = module.vpc.public_subnets
 }
 
 resource "aws_lb_listener" "http" {
@@ -159,52 +217,11 @@ resource "aws_lb_target_group" "app" {
 
   health_check {
     healthy_threshold   = "3"
-    interval           = "30"
-    protocol           = "HTTP"
-    matcher            = "200"
-    timeout            = "3"
-    path              = "/"
+    interval            = "30"
+    protocol            = "HTTP"
+    matcher             = "200"
+    timeout             = "3"
+    path                = "/"
     unhealthy_threshold = "2"
-  }
-}
-
-# Security Groups
-resource "aws_security_group" "alb" {
-  name        = "task-manager-alb-sg"
-  description = "ALB Security Group"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    protocol    = "tcp"
-    from_port   = 80
-    to_port     = 80
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-}
-
-resource "aws_security_group" "ecs_tasks" {
-  name        = "task-manager-ecs-tasks-sg"
-  description = "ECS Tasks Security Group"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress {
-    protocol        = "tcp"
-    from_port       = 80
-    to_port         = 80
-    security_groups = [aws_security_group.alb.id]
-  }
-
-  egress {
-    protocol    = "-1"
-    from_port   = 0
-    to_port     = 0
-    cidr_blocks = ["0.0.0.0/0"]
   }
 }
