@@ -7,7 +7,7 @@
     "containerDefinitions": [
         {
             "name": "task-manager",
-            "image": "your-registry.amazonaws.com/task-manager:latest",
+            "image": "794038256791.dkr.ecr.eu-north-1.amazonaws.com/task-manager:latest",
             "portMappings": [
                 {
                     "containerPort": 80,
