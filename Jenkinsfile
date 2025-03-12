@@ -61,7 +61,7 @@ pipeline {
                         def customImage = docker.build("${DOCKER_REGISTRY}/${ECR_REPOSITORY}:${DOCKER_TAG}", '--no-cache .')
                         
                         // Test the built image
-                        customImage.inside {
+                        customImage.inside('-u 0:0') {
                             sh 'nginx -t'  // Test nginx configuration
                         }
                     } catch (Exception e) {
