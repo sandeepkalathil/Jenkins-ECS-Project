@@ -1,4 +1,4 @@
-# Use multi-stage build to optimize the final image
+# Use the latest stable Alpine as the base image for building the app
 FROM node:18-alpine AS builder
 
 # Set working directory
@@ -14,28 +14,42 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Use Nginx as the final stage
-FROM nginx:alpine
+# Use the latest stable Alpine as the base image for the final stage
+FROM alpine:latest
 
-# Set working directory
+# Set environment variables to prevent interactive prompts
+ENV NGINX_VERSION=1.24.0 \
+    LIBXML2_VERSION=2.13.4-r5
+
+# Update Alpine, install Nginx and dependencies, and fix vulnerabilities
+RUN apk update && apk upgrade --no-cache && \
+    apk add --no-cache \
+        nginx=${NGINX_VERSION} \
+        libxml2=${LIBXML2_VERSION} \
+        libxml2-utils && \
+    rm -rf /var/cache/apk/*
+
+# Set working directory for Nginx
 WORKDIR /usr/share/nginx/html
 
 # Remove the default nginx index.html
 RUN rm -rf ./*
 
 # Copy built application from the builder stage
-COPY --from=builder /app/dist ./
+COPY --from=builder /app/dist ./ 
 
-# Copy custom nginx configuration
+# Copy the custom Nginx configuration file
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Ensure proper permissions for cache directory
-RUN mkdir -p /var/cache/nginx && \
-    chmod -R 755 /var/cache/nginx && \
+RUN mkdir -p /var/cache/nginx/client_temp && \
     chown -R nginx:nginx /var/cache/nginx
+
+# Run Nginx as a non-root user
+USER nginx
 
 # Expose port 80
 EXPOSE 80
 
-# Start Nginx
+# Start Nginx in the foreground
 CMD ["nginx", "-g", "daemon off;"]
