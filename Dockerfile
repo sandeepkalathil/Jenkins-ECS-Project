@@ -1,5 +1,9 @@
 FROM node:18-alpine as builder
-RUN apk update && apk upgrade libxml2
+
+# Update and upgrade to install the latest security patches
+RUN apk update && \
+    apk upgrade --no-cache && \
+    apk add --no-cache libxml2=2.13.4-r5
 
 WORKDIR /app
 COPY package*.json ./
