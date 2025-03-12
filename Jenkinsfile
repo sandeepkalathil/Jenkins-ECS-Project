@@ -148,6 +148,16 @@ pipeline {
     steps {
         script {
             try {
+                // Update ALB health check path
+                sh """
+                    aws elbv2 modify-target-group \
+                        --target-group-arn <TARGET_GROUP_ARN> \
+                        --health-check-path "/" \
+                        --health-check-interval-seconds 30 \
+                        --health-check-timeout-seconds 5 \
+                        --region ${AWS_REGION}
+                """
+
                 // Fetch current task definition
                 sh """
                     aws ecs describe-task-definition \
@@ -157,10 +167,11 @@ pipeline {
                         --output json > task-def.json
                 """
 
-                // Clean up JSON and update image
+                // Clean up JSON and update image & port mapping
                 sh """
                     jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
-                        .containerDefinitions[0].image = "${DOCKER_REGISTRY}/${ECR_REPOSITORY}:${DOCKER_TAG}"' \
+                        .containerDefinitions[0].image = "${DOCKER_REGISTRY}/${ECR_REPOSITORY}:${DOCKER_TAG}" |
+                        .containerDefinitions[0].portMappings[0].containerPort = 80' \
                         task-def.json > new-task-def.json
                 """
 
@@ -196,6 +207,7 @@ pipeline {
         }
     }
 }
+
 
         
         stage('Health Check') {
