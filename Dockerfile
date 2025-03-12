@@ -18,13 +18,12 @@ RUN npm run build
 FROM alpine:latest
 
 # Set environment variables to prevent interactive prompts
-ENV NGINX_VERSION=1.24.0 \
-    LIBXML2_VERSION=2.13.4-r5
+ENV LIBXML2_VERSION=2.13.4-r5
 
-# Update Alpine, install Nginx and dependencies, and fix vulnerabilities
+# Update Alpine, install the latest Nginx and dependencies, and fix vulnerabilities
 RUN apk update && apk upgrade --no-cache && \
     apk add --no-cache \
-        nginx=${NGINX_VERSION} \
+        nginx \
         libxml2=${LIBXML2_VERSION} \
         libxml2-utils && \
     rm -rf /var/cache/apk/*
