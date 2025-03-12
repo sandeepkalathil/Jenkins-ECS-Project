@@ -10,18 +10,18 @@ RUN apk update && apk upgrade --no-cache && \
     rm -rf /var/cache/apk/*
 
 # Create necessary directories with proper permissions
-RUN mkdir -p /var/cache/nginx/client_temp /var/lib/nginx/logs && \
-    chown -R root:root /var/cache/nginx /var/lib/nginx/logs && chmod -R 777 /var/lib/nginx/logs
+RUN mkdir -p /var/cache/nginx/client_temp /var/lib/nginx/logs /usr/share/nginx/html && \
+    chown -R root:root /var/cache/nginx /var/lib/nginx/logs /usr/share/nginx/html && chmod -R 777 /var/lib/nginx/logs
 
 # Copy the custom Nginx configuration file
 COPY nginx.conf /etc/nginx/nginx.conf
 
+# Copy the index.html file into the correct directory
+COPY index.html /usr/share/nginx/html/index.html
+
 # Ensure log files exist
 RUN touch /var/lib/nginx/logs/error.log /var/lib/nginx/logs/access.log && \
     chmod 777 /var/lib/nginx/logs/*.log
-
-# Set Nginx to run as a non-root user
-USER root
 
 # Expose port 80
 EXPOSE 80
