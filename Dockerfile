@@ -11,7 +11,7 @@ RUN apk update && apk upgrade --no-cache && \
 
 # Create necessary directories with proper permissions
 RUN mkdir -p /var/cache/nginx/client_temp /var/lib/nginx/logs && \
-    chown -R nginx:nginx /var/cache/nginx /var/lib/nginx/logs
+    chown -R nginx:nginx /var/cache/nginx /var/lib/nginx/logs && chmod -R 777 /var/lib/nginx/logs
 
 # Copy the custom Nginx configuration file
 COPY nginx.conf /etc/nginx/nginx.conf
