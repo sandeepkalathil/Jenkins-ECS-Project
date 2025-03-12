@@ -138,57 +138,65 @@ pipeline {
         }
         
         stage('Deploy to ECS') {
-            agent {
-                node {
-                    label 'ec2-build-node'
-                    customWorkspace '/home/ubuntu/jenkins-agent/workspace'
-                }
-            }
-            
-            steps {
-                script {
-                    try {
-                        // Update task definition with new image
-                        sh """
-                            aws ecs describe-task-definition \
-                                --task-definition task-manager \
-                                --region ${AWS_REGION} \
-                                --query 'taskDefinition' \
-                                --output json > task-def.json
-                            
-                            # Update image in task definition
-                            jq '.containerDefinitions[0].image = "${DOCKER_REGISTRY}/${ECR_REPOSITORY}:${DOCKER_TAG}"' task-def.json > new-task-def.json
-                            
-                            # Register new task definition
-                            aws ecs register-task-definition \
-                                --region ${AWS_REGION} \
-                                --cli-input-json file://new-task-def.json
-                        """
-                        
-                        // Update service with new task definition
-                        sh """
-                            aws ecs update-service \
-                                --cluster task-manager-cluster \
-                                --service task-manager-service \
-                                --task-definition task-manager \
-                                --force-new-deployment \
-                                --region ${AWS_REGION}
-                        """
-                        
-                        // Wait for service to be stable
-                        sh """
-                            aws ecs wait services-stable \
-                                --cluster task-manager-cluster \
-                                --services task-manager-service \
-                                --region ${AWS_REGION}
-                        """
-                    } catch (Exception e) {
-                        currentBuild.result = 'FAILURE'
-                        error "Deployment failed: ${e.message}"
-                    }
-                }
+    agent {
+        node {
+            label 'ec2-build-node'
+            customWorkspace '/home/ubuntu/jenkins-agent/workspace'
+        }
+    }
+
+    steps {
+        script {
+            try {
+                // Fetch current task definition
+                sh """
+                    aws ecs describe-task-definition \
+                        --task-definition task-manager \
+                        --region ${AWS_REGION} \
+                        --query 'taskDefinition' \
+                        --output json > task-def.json
+                """
+
+                // Clean up JSON and update image
+                sh """
+                    jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy) |
+                        .containerDefinitions[0].image = "${DOCKER_REGISTRY}/${ECR_REPOSITORY}:${DOCKER_TAG}"' \
+                        task-def.json > new-task-def.json
+                """
+
+                // Register new task definition
+                sh """
+                    aws ecs register-task-definition \
+                        --region ${AWS_REGION} \
+                        --cli-input-json file://new-task-def.json
+                """
+
+                // Update service with new task definition
+                sh """
+                    aws ecs update-service \
+                        --cluster task-manager-cluster \
+                        --service task-manager-service \
+                        --task-definition task-manager \
+                        --force-new-deployment \
+                        --region ${AWS_REGION}
+                """
+
+                // Wait for service to be stable
+                sh """
+                    aws ecs wait services-stable \
+                        --cluster task-manager-cluster \
+                        --services task-manager-service \
+                        --region ${AWS_REGION}
+                """
+
+            } catch (Exception e) {
+                currentBuild.result = 'FAILURE'
+                error "Deployment failed: ${e.message}"
             }
         }
+    }
+}
+
         
         stage('Health Check') {
             agent {
