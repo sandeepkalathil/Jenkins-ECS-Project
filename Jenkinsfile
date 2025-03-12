@@ -5,7 +5,7 @@ pipeline {
         DOCKER_IMAGE = 'task-manager'
         DOCKER_TAG = "${BUILD_NUMBER}"
         DOCKER_REGISTRY = 'your-registry.amazonaws.com'
-        AWS_REGION = 'us-east-1'
+        AWS_REGION = 'eu-north-1'
         ECR_REPOSITORY = 'task-manager'
         NODE_ENV = 'production'
     }

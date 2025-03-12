@@ -1,7 +1,7 @@
 variable "aws_region" {
   description = "AWS region"
   type        = string
-  default     = "us-east-1"
+  default     = "eu-north-1"
 }
 
 variable "app_name" {
@@ -17,11 +17,6 @@ variable "app_environment" {
 }
 
 variable "key_pair_name" {
-  description = "Name of the EC2 key pair for Jenkins node"
-  type        = string
-}
-
-variable "jenkins_master_ip" {
-  description = "IP address of Jenkins master"
+  description = "Name of the EC2 key pair for Jenkins nodes"
   type        = string
 }

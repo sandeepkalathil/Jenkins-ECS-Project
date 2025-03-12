@@ -9,7 +9,8 @@ module "vpc" {
   name = "task-manager-vpc"
   cidr = "10.0.0.0/16"
 
-  azs             = ["${var.aws_region}a", "${var.aws_region}b"]
+  azs = ["${var.aws_region}a", "${var.aws_region}b"]
+
   private_subnets = ["10.0.1.0/24", "10.0.2.0/24"]
   public_subnets  = ["10.0.101.0/24", "10.0.102.0/24"]
 
@@ -19,13 +20,13 @@ module "vpc" {
 
 # Jenkins Master EC2 Instance
 resource "aws_instance" "jenkins_master" {
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04 LTS
+  ami           = "ami-09a9858973b288bdd" # Ubuntu 24.04 LTS for eu-north-1
   instance_type = "t3.medium"
   subnet_id     = module.vpc.public_subnets[0]
-
+  associate_public_ip_address = true
   vpc_security_group_ids = [aws_security_group.jenkins_master.id]
   key_name              = var.key_pair_name
-
+  iam_instance_profile = "MySessionManagerrole"
   root_block_device {
     volume_size = 50
     volume_type = "gp3"
@@ -35,13 +36,28 @@ resource "aws_instance" "jenkins_master" {
               #!/bin/bash
               # Install Java
               apt-get update
-              apt-get install -y openjdk-11-jdk
-
-              # Install Jenkins
-              wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -
-              sh -c 'echo deb https://pkg.jenkins.io/debian-stable binary/ > /etc/apt/sources.list.d/jenkins.list'
+              
+               # Install required packages
               apt-get update
-              apt-get install -y jenkins
+              apt-get install -y gnupg curl
+
+              # Add the correct Jenkins repository key
+              curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee \
+                /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+
+              # Add Jenkins repository
+              echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | sudo tee \
+                /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+              # Update package lists again
+              apt-get update
+
+              # Install Java and Jenkins
+              apt-get install -y openjdk-17-jdk jenkins
+
+              # Enable and start Jenkins service
+              systemctl enable jenkins
+              systemctl start jenkins
 
               # Install AWS CLI
               apt-get install -y unzip
@@ -49,10 +65,7 @@ resource "aws_instance" "jenkins_master" {
               unzip awscliv2.zip
               ./aws/install
 
-              # Start Jenkins
-              systemctl enable jenkins
-              systemctl start jenkins
-
+             
               # Install Docker
               apt-get install -y apt-transport-https ca-certificates curl software-properties-common
               curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -102,16 +115,16 @@ resource "aws_security_group" "jenkins_master" {
 
 # Jenkins Build Node EC2 Instance
 resource "aws_instance" "jenkins_node" {
-  ami           = "ami-0c55b159cbfafe1f0" # Ubuntu 20.04 LTS
-  instance_type = "t2.medium"
+  ami           = "ami-09a9858973b288bdd" # Ubuntu 24.04 LTS for eu-north-1
+  instance_type = "t3.medium"
   subnet_id     = module.vpc.public_subnets[0]
-
+  associate_public_ip_address = true
   vpc_security_group_ids = [aws_security_group.jenkins_node.id]
   key_name              = var.key_pair_name
-
+  iam_instance_profile = "MySessionManagerrole"
   root_block_device {
     volume_size = 30
-    volume_type = "gp2"
+    volume_type = "gp3"
   }
 
   user_data = <<-EOF
@@ -126,7 +139,7 @@ resource "aws_instance" "jenkins_node" {
               usermod -aG docker ubuntu
 
               # Install Java
-              apt-get install -y openjdk-11-jdk
+              apt-get install -y openjdk-17-jdk
 
               # Install AWS CLI
               apt-get install -y unzip
@@ -154,7 +167,7 @@ resource "aws_security_group" "jenkins_node" {
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
-    security_groups = [aws_security_group.jenkins_master.id]
+    security_groups = ["0.0.0.0/0"]
   }
 
   ingress {
@@ -290,4 +303,62 @@ resource "aws_security_group" "ecs_tasks" {
     to_port     = 0
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+resource "aws_ecs_service" "app" {
+  name            = "task-manager-service"
+  cluster         = aws_ecs_cluster.main.id
+  task_definition = aws_ecs_task_definition.app.arn
+  desired_count   = 2
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = module.vpc.private_subnets
+    security_groups  = [aws_security_group.ecs_tasks.id]
+    assign_public_ip = false
+  }
+
+  load_balancer {
+    target_group_arn = aws_lb_target_group.app.arn
+    container_name   = "task-manager"
+    container_port   = 80
+  }
+
+  depends_on = [aws_lb_listener.http]
+}
+
+resource "aws_ecs_task_definition" "app" {
+  family                   = "task-manager"
+  requires_compatibilities = ["FARGATE"]
+  network_mode             = "awsvpc"
+  cpu                      = "256"
+  memory                   = "512"
+
+  execution_role_arn = aws_iam_role.ecs_task_execution_role.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "task-manager"
+      image     = "${aws_ecr_repository.app.repository_url}:latest"
+      cpu       = 256
+      memory    = 512
+      essential = true
+      portMappings = [
+        {
+          containerPort = 80
+          hostPort      = 80
+        }
+      ]
+    }
+  ])
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_ecr_access" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_task_cloudwatch_access" {
+  role       = aws_iam_role.ecs_task_execution_role.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
 }
