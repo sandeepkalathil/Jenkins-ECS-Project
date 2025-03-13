@@ -7,6 +7,11 @@ interface Task {
   completed: boolean;
 }
 
+// Helper function to generate a simple unique ID
+const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substring(2);
+};
+
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
@@ -15,56 +20,89 @@ function App() {
   const addTask = useCallback((e: React.FormEvent) => {
     e.preventDefault();
     try {
-      if (newTask.trim()) {
-        const task: Task = {
-          id: crypto.randomUUID(),
-          text: newTask.trim(),
-          completed: false
-        };
-        console.log('Adding new task:', task);
-        setTasks(prevTasks => {
-          const updatedTasks = [...prevTasks, task];
-          console.log('Updated tasks:', updatedTasks);
-          return updatedTasks;
-        });
-        setNewTask('');
-        setError(null);
+      const trimmedTask = newTask.trim();
+      console.log('Attempting to add task:', { text: trimmedTask });
+      
+      if (!trimmedTask) {
+        console.log('Task text is empty, skipping');
+        return;
       }
+
+      const task: Task = {
+        id: generateId(),
+        text: trimmedTask,
+        completed: false
+      };
+      
+      console.log('Created new task object:', task);
+      
+      setTasks(prevTasks => {
+        console.log('Previous tasks:', prevTasks);
+        const updatedTasks = [...prevTasks, task];
+        console.log('Updated tasks:', updatedTasks);
+        return updatedTasks;
+      });
+      
+      setNewTask('');
+      setError(null);
+      console.log('Task added successfully');
+      
     } catch (err) {
-      console.error('Error adding task:', err);
-      setError('Failed to add task. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Error adding task:', errorMessage);
+      setError(`Failed to add task: ${errorMessage}`);
     }
   }, [newTask]);
 
   const toggleTask = useCallback((id: string) => {
     try {
-      console.log('Toggling task:', id);
+      console.log('Attempting to toggle task:', id);
+      
       setTasks(prevTasks => {
+        const taskExists = prevTasks.some(task => task.id === id);
+        console.log('Task exists:', taskExists);
+        
+        if (!taskExists) {
+          throw new Error('Task not found');
+        }
+        
         const updatedTasks = prevTasks.map(task => 
           task.id === id ? { ...task, completed: !task.completed } : task
         );
         console.log('Tasks after toggle:', updatedTasks);
         return updatedTasks;
       });
+      
       setError(null);
     } catch (err) {
-      console.error('Error toggling task:', err);
-      setError('Failed to update task. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Error toggling task:', errorMessage);
+      setError(`Failed to update task: ${errorMessage}`);
     }
   }, []);
 
   const deleteTask = useCallback((id: string) => {
     try {
-      console.log('Deleting task:', id);
+      console.log('Attempting to delete task:', id);
+      
       setTasks(prevTasks => {
+        const taskExists = prevTasks.some(task => task.id === id);
+        console.log('Task exists:', taskExists);
+        
+        if (!taskExists) {
+          throw new Error('Task not found');
+        }
+        
         const updatedTasks = prevTasks.filter(task => task.id !== id);
         console.log('Tasks after deletion:', updatedTasks);
         return updatedTasks;
       });
+      
       setError(null);
     } catch (err) {
-      console.error('Error deleting task:', err);
-      setError('Failed to delete task. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Error deleting task:', errorMessage);
+      setError(`Failed to delete task: ${errorMessage}`);
     }
   }, []);
 
