@@ -151,7 +151,7 @@ pipeline {
                 // Update ALB health check path
                 sh """
                     aws elbv2 modify-target-group \
-                        --target-group-arn arn:aws:elasticloadbalancing:eu-north-1:794038256791:targetgroup/task-manager-tg/3c88b969d202bb89 \
+                        --target-group-arn arn:aws:elasticloadbalancing:eu-north-1:794038256791:targetgroup/task-manager-tg/7fbbd6e2df730808 \
                         --health-check-path "/" \
                         --health-check-interval-seconds 30 \
                         --health-check-timeout-seconds 5 \
