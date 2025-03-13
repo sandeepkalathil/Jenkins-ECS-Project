@@ -167,7 +167,7 @@ resource "aws_security_group" "jenkins_node" {
     from_port       = 22
     to_port         = 22
     protocol        = "tcp"
-    security_groups = ["0.0.0.0/0"]
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
