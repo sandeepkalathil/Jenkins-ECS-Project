@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { PlusCircle, CheckCircle2, Trash2, ClipboardList } from 'lucide-react';
 
 interface Task {
@@ -10,42 +10,75 @@ interface Task {
 function App() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [newTask, setNewTask] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
-  const addTask = (e: React.FormEvent) => {
+  const addTask = useCallback((e: React.FormEvent) => {
     e.preventDefault();
-    if (newTask.trim()) {
-      const task: Task = {
-        id: crypto.randomUUID(),
-        text: newTask.trim(),
-        completed: false
-      };
-      setTasks(prevTasks => [...prevTasks, task]);
-      setNewTask('');
+    try {
+      if (newTask.trim()) {
+        const task: Task = {
+          id: crypto.randomUUID(),
+          text: newTask.trim(),
+          completed: false
+        };
+        console.log('Adding new task:', task);
+        setTasks(prevTasks => {
+          const updatedTasks = [...prevTasks, task];
+          console.log('Updated tasks:', updatedTasks);
+          return updatedTasks;
+        });
+        setNewTask('');
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error adding task:', err);
+      setError('Failed to add task. Please try again.');
     }
-  };
+  }, [newTask]);
 
-  const toggleTask = (id: string) => {
-    setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.id === id ? { ...task, completed: !task.completed } : task
-      )
-    );
-  };
+  const toggleTask = useCallback((id: string) => {
+    try {
+      console.log('Toggling task:', id);
+      setTasks(prevTasks => {
+        const updatedTasks = prevTasks.map(task => 
+          task.id === id ? { ...task, completed: !task.completed } : task
+        );
+        console.log('Tasks after toggle:', updatedTasks);
+        return updatedTasks;
+      });
+      setError(null);
+    } catch (err) {
+      console.error('Error toggling task:', err);
+      setError('Failed to update task. Please try again.');
+    }
+  }, []);
 
-  const deleteTask = (id: string) => {
-    setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
-  };
+  const deleteTask = useCallback((id: string) => {
+    try {
+      console.log('Deleting task:', id);
+      setTasks(prevTasks => {
+        const updatedTasks = prevTasks.filter(task => task.id !== id);
+        console.log('Tasks after deletion:', updatedTasks);
+        return updatedTasks;
+      });
+      setError(null);
+    } catch (err) {
+      console.error('Error deleting task:', err);
+      setError('Failed to delete task. Please try again.');
+    }
+  }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setNewTask(e.target.value);
-  };
+    setError(null);
+  }, []);
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      addTask(e);
+      addTask(e as unknown as React.FormEvent);
     }
-  };
+  }, [addTask]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -60,6 +93,12 @@ function App() {
               {tasks.filter(t => t.completed).length}/{tasks.length} completed
             </div>
           </div>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-600">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={addTask} className="mb-8">
             <div className="flex gap-4">
