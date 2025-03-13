@@ -92,7 +92,7 @@ terraform apply
    - ID: docker-credentials
    - Description: Docker Registry Credentials
    - Username: AWS
-   - Password: (Use AWS CLI get-login-password output)
+   - Password: (Use AWS CLI get-login-password output)  aws ecr get-login-password --region eu-north-1
 
 3. GitHub:
    - Kind: Username with password
