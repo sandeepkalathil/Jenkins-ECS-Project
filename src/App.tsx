@@ -14,19 +14,37 @@ function App() {
   const addTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (newTask.trim()) {
-      setTasks([...tasks, { id: crypto.randomUUID(), text: newTask, completed: false }]);
+      const task: Task = {
+        id: crypto.randomUUID(),
+        text: newTask.trim(),
+        completed: false
+      };
+      setTasks(prevTasks => [...prevTasks, task]);
       setNewTask('');
     }
   };
 
   const toggleTask = (id: string) => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === id ? { ...task, completed: !task.completed } : task
+      )
+    );
   };
 
   const deleteTask = (id: string) => {
-    setTasks(tasks.filter(task => task.id !== id));
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewTask(e.target.value);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      addTask(e);
+    }
   };
 
   return (
@@ -48,13 +66,16 @@ function App() {
               <input
                 type="text"
                 value={newTask}
-                onChange={(e) => setNewTask(e.target.value)}
+                onChange={handleInputChange}
+                onKeyPress={handleKeyPress}
                 placeholder="Add a new task..."
-                className="flex-1 rounded-lg border-gray-300 shadow-sm focus:border-purple-500 focus:ring-purple-500 px-4 py-3"
+                className="flex-1 rounded-lg border border-gray-300 shadow-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500 focus:ring-opacity-50 px-4 py-3"
+                autoFocus
               />
               <button
                 type="submit"
-                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                disabled={!newTask.trim()}
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-lg shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 <PlusCircle className="h-5 w-5 mr-2" />
                 Add Task
@@ -76,6 +97,7 @@ function App() {
                     className={`rounded-full p-1 transition-colors ${
                       task.completed ? 'text-green-500 hover:text-green-600' : 'text-gray-400 hover:text-gray-500'
                     }`}
+                    aria-label={task.completed ? "Mark as incomplete" : "Mark as complete"}
                   >
                     <CheckCircle2 className="h-6 w-6" />
                   </button>
@@ -85,7 +107,8 @@ function App() {
                 </div>
                 <button
                   onClick={() => deleteTask(task.id)}
-                  className="text-red-400 hover:text-red-500 transition-colors"
+                  className="text-red-400 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
+                  aria-label="Delete task"
                 >
                   <Trash2 className="h-5 w-5" />
                 </button>
