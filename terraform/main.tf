@@ -25,7 +25,7 @@ resource "aws_instance" "jenkins_master" {
   subnet_id     = module.vpc.public_subnets[0]
   associate_public_ip_address = true
   vpc_security_group_ids = [aws_security_group.jenkins_master.id]
-  key_name              = var.key_pair_name
+  key_name              = "jenkins-node-key"
   iam_instance_profile = "MySessionManagerrole"
   root_block_device {
     volume_size = 50
@@ -120,7 +120,7 @@ resource "aws_instance" "jenkins_node" {
   subnet_id     = module.vpc.public_subnets[0]
   associate_public_ip_address = true
   vpc_security_group_ids = [aws_security_group.jenkins_node.id]
-  key_name              = var.key_pair_name
+  key_name              = "jenkins-node-key"
   iam_instance_profile = "MySessionManagerrole"
   root_block_device {
     volume_size = 30
